@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>再生履歴 - 仙人tube Next</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <style>
+        /* 基本設定：index.htmlを継承 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #ffffff;
+            --surface: #f9f9f9;
+            --border: #e5e5e5;
+            --accent: #ff0000;
+            --text-main: #0f0f0f;
+            --text-sub: #606060;
+        }
+        body { font-family: "Inter", "Hiragino Sans", sans-serif; background-color: var(--bg); color: var(--text-main); overflow-x: hidden; }
+
+        /* ヘッダー */
+        header {
+            position: fixed; top: 0; width: 100%; height: 56px;
+            background: var(--bg); display: flex; align-items: center;
+            justify-content: space-between; padding: 0 16px; z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+        .header-left { display: flex; align-items: center; }
+        .menu-icon { padding: 8px; cursor: pointer; margin-right: 16px; display: flex; align-items: center; }
+        .menu-icon:hover { background-color: var(--surface); }
+        .logo-container { display: flex; align-items: center; cursor: pointer; font-weight: 900; font-size: 18px; letter-spacing: -0.5px; }
+        .next-badge { background: var(--accent); color: white; font-size: 10px; padding: 1px 4px; margin-left: 4px; font-family: Arial, sans-serif; }
+
+        .header-center { display: flex; align-items: center; flex: 0 1 720px; }
+        .search-container { display: flex; flex: 1; margin-left: 40px; position: relative; }
+        .search-bar { display: flex; flex: 1; border: 1px solid var(--border); background: var(--bg); padding-left: 16px; align-items: center; }
+        .search-bar input { width: 100%; border: none; outline: none; font-size: 16px; height: 38px; }
+        .search-btn { width: 64px; height: 40px; background-color: var(--surface); border: 1px solid var(--border); border-left: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .search-btn:hover { background-color: #f0f0f0; border-color: #ccc; }
+
+        /* オートコンプリート：シャープなリスト */
+        #search-suggestions {
+            position: absolute; top: 41px; left: 0; right: 64px;
+            background: white; border: 1px solid var(--border);
+            display: none; z-index: 1000; list-style: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 10px 16px; cursor: pointer; display: flex; align-items: center;
+            font-size: 14px; font-weight: bold;
+        }
+        .suggestion-item:hover { background: var(--surface); }
+
+        /* サイドバー */
+        nav {
+            position: fixed; top: 56px; left: 0; width: 240px; height: 100%;
+            background: var(--bg); padding: 12px 0;
+            transition: transform 0.2s; border-right: 1px solid var(--border);
+            z-index: 90;
+        }
+        .nav-item { display: flex; align-items: center; padding: 0 24px; height: 40px; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .nav-item:hover { background: var(--surface); }
+        .nav-item.active { background: var(--surface); font-weight: bold; }
+        .nav-item .material-icons-outlined { margin-right: 24px; font-size: 22px; }
+
+        /* メインレイアウト */
+        main { 
+            margin-top: 56px; margin-left: 240px; padding: 24px 80px;
+            display: flex; gap: 60px; transition: margin-left 0.2s;
+            min-height: calc(100vh - 56px);
+        }
+        .history-list-section { flex: 1; max-width: 850px; }
+        .history-controls-section { width: 350px; flex-shrink: 0; }
+
+        .page-title { font-size: 16px; font-weight: bold; margin-bottom: 24px; }
+        .date-group-title { font-size: 16px; font-weight: bold; margin: 32px 0 16px 0; }
+
+        /* 履歴アイテム：リスト形式 */
+        .history-item { 
+            display: flex; gap: 16px; margin-bottom: 16px; 
+            text-decoration: none; color: inherit; position: relative;
+        }
+        .history-thumb { 
+            width: 246px; aspect-ratio: 16/9; background-color: var(--surface); 
+            background-size: cover; background-position: center; border: 1px solid var(--border); flex-shrink: 0;
+        }
+        .history-info { flex: 1; position: relative; }
+        .history-info h3 { font-size: 18px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .history-meta { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
+        .history-desc { font-size: 12px; color: var(--text-sub); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+        .delete-video-btn {
+            position: absolute; top: 0; right: 0; cursor: pointer; padding: 4px;
+            color: var(--text-sub); visibility: hidden;
+        }
+        .history-item-wrapper:hover .delete-video-btn { visibility: visible; }
+        .delete-video-btn:hover { color: var(--text-main); }
+
+        /* 履歴コントロール（右側） */
+        .control-item { display: flex; align-items: center; gap: 16px; padding: 12px 0; cursor: pointer; font-size: 14px; user-select: none; }
+        .control-item:hover { color: var(--text-main); background: var(--surface); }
+        .control-item .material-icons-outlined { font-size: 20px; }
+        
+        .history-search-input {
+            width: 100%; border: none; border-bottom: 1px solid var(--border);
+            padding: 8px 0; outline: none; font-size: 14px; margin-bottom: 24px;
+        }
+        .history-search-input:focus { border-bottom: 2px solid var(--text-main); }
+
+        body.sidebar-hidden nav { transform: translateX(-240px); }
+        body.sidebar-hidden main { margin-left: 0; }
+
+        @media (max-width: 1200px) {
+            main { flex-direction: column-reverse; padding: 20px; margin-left: 0; }
+            .history-controls-section { width: 100%; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+            .history-thumb { width: 160px; }
+            .history-info h3 { font-size: 14px; }
+        }
+    </style>
+</head>
+<body class="sidebar-visible">
+
+    <header>
+        <div class="header-left">
+            <div class="menu-icon" id="menu-toggle">
+                <span class="material-icons-outlined">menu</span>
+            </div>
+            <div class="logo-container" onclick="location.href='/'">
+                仙人チューブ<span class="next-badge">NEXT</span>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="search-container">
+                <div class="search-bar">
+                    <input type="text" placeholder="動画を検索" id="search-input" autocomplete="off">
+                </div>
+                <button class="search-btn" id="search-button">
+                    <span class="material-icons-outlined">search</span>
+                </button>
+                <ul id="search-suggestions"></ul>
+            </div>
+        </div>
+        <div class="header-right"></div>
+    </header>
+
+    <nav id="sidebar">
+        <ul>
+            <li class="nav-item" onclick="location.href='/'">
+                <span class="material-icons-outlined">home</span>ホーム
+            </li>
+            <li class="nav-item">
+                <span class="material-icons-outlined">subscriptions</span>登録チャンネル
+            </li>
+            <hr style="margin: 8px 0; border: 0; border-top: 1px solid var(--border);">
+            <li class="nav-item active" onclick="location.href='/history'">
+                <span class="material-icons-outlined">history</span>視聴履歴
+            </li>
+            <li class="nav-item">
+                <span class="material-icons-outlined">playlist_play</span>ライブラリ
+            </li>
+        </ul>
+    </nav>
+
+    <main id="main-content">
+        <div class="history-list-section">
+            <div class="page-title">再生履歴</div>
+            <div id="history-container">
+                <p>履歴を読み込み中...</p>
+            </div>
+        </div>
+
+        <div class="history-controls-section">
+            <input type="text" class="history-search-input" id="history-search" placeholder="再生履歴を検索">
+            
+            <div class="control-item" onclick="clearAllHistory()">
+                <span class="material-icons-outlined">delete</span>
+                <span>すべての再生履歴を消去</span>
+            </div>
+            <div class="control-item" id="pause-history-btn" onclick="togglePauseHistory()">
+                <span class="material-icons-outlined">pause_circle_outline</span>
+                <span id="pause-text">再生履歴を保存しない</span>
+            </div>
+            <div class="control-item" onclick="location.href='/settings'">
+                <span class="material-icons-outlined">settings</span>
+                <span>すべての履歴を管理</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const menuToggle = document.getElementById('menu-toggle');
+        const body = document.body;
+        const historyContainer = document.getElementById('history-container');
+        const searchInput = document.getElementById('search-input');
+        const searchButton = document.getElementById('search-button');
+        const suggestBox = document.getElementById('search-suggestions');
+        const historySearchInput = document.getElementById('history-search');
+
+        let allHistoryData = [];
+
+        // サイドバー切り替え
+        menuToggle.addEventListener('click', () => body.classList.toggle('sidebar-hidden'));
+
+        // メイン検索
+        async function performSearch(q) {
+            if(!q) return;
+            location.href = `/search?q=${encodeURIComponent(q)}`;
+        }
+        searchButton.onclick = () => performSearch(searchInput.value);
+        searchInput.onkeypress = (e) => { if(e.key === 'Enter') performSearch(searchInput.value); };
+
+        // サジェスト機能（実際のAPIがない場合は空リスト）
+        searchInput.oninput = async () => {
+            const q = searchInput.value;
+            if(!q) { suggestBox.style.display = 'none'; return; }
+            try {
+                const res = await fetch(`/api/suggestions?q=${encodeURIComponent(q)}`);
+                if (res.ok) {
+                    const suggestions = await res.json();
+                    if(suggestions.length > 0) {
+                        suggestBox.innerHTML = suggestions.map(s => `
+                            <li class="suggestion-item"><span class="material-icons-outlined" style="margin-right:10px; font-size:18px;">search</span>${s}</li>
+                        `).join('');
+                        suggestBox.style.display = 'block';
+                        document.querySelectorAll('.suggestion-item').forEach((item, i) => {
+                            item.onclick = () => {
+                                searchInput.value = suggestions[i];
+                                performSearch(suggestions[i]);
+                            };
+                        });
+                        return;
+                    }
+                }
+            } catch(e) {}
+            suggestBox.style.display = 'none';
+        };
+        document.addEventListener('click', (e) => { if (!e.target.closest('.search-container')) suggestBox.style.display = 'none'; });
+
+        // 履歴検索（フィルタリング）
+        historySearchInput.oninput = () => {
+            const query = historySearchInput.value.toLowerCase();
+            const filtered = allHistoryData.filter(v => 
+                v.title.toLowerCase().includes(query) || v.author.toLowerCase().includes(query)
+            );
+            renderHistory(filtered);
+        };
+
+        // 履歴削除 (LocalStorage対応)
+        function removeVideo(timestamp) {
+            if(confirm("この動画を履歴から削除しますか？")) {
+                let history = JSON.parse(localStorage.getItem('watch_history') || '[]');
+                history = history.filter(v => v.timestamp !== timestamp);
+                localStorage.setItem('watch_history', JSON.stringify(history));
+                loadHistory();
+            }
+        }
+
+        function clearAllHistory() {
+            if(confirm("すべての再生履歴を消去しますか？")) {
+                localStorage.removeItem('watch_history');
+                loadHistory();
+            }
+        }
+
+        // 履歴保存の一時停止フラグ
+        function togglePauseHistory() {
+            const isPaused = localStorage.getItem('pause_history') === 'true';
+            localStorage.setItem('pause_history', !isPaused);
+            updatePauseButton();
+        }
+
+        function updatePauseButton() {
+            const isPaused = localStorage.getItem('pause_history') === 'true';
+            const text = document.getElementById('pause-text');
+            const icon = document.querySelector('#pause-history-btn .material-icons-outlined');
+            if(isPaused) {
+                text.innerText = "再生履歴の保存を再開する";
+                icon.innerText = "play_circle_outline";
+            } else {
+                text.innerText = "再生履歴を保存しない";
+                icon.innerText = "pause_circle_outline";
+            }
+        }
+
+        // 履歴データの読み込み
+        function loadHistory() {
+            // ローカルストレージまたはAPIから取得
+            const history = JSON.parse(localStorage.getItem('watch_history') || '[]');
+            allHistoryData = history.reverse(); // 新しい順
+            renderHistory(allHistoryData);
+            updatePauseButton();
+        }
+
+        function renderHistory(videos) {
+            if (!videos || videos.length === 0) {
+                historyContainer.innerHTML = "<p style='padding:20px; color:var(--text-sub);'>再生履歴はありません。</p>";
+                return;
+            }
+
+            // 日付ごとにグループ化
+            const groups = {};
+            videos.forEach(v => {
+                const date = new Date(v.timestamp).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+                if (!groups[date]) groups[date] = [];
+                groups[date].push(v);
+            });
+
+            historyContainer.innerHTML = Object.keys(groups).map(date => `
+                <div class="date-group-title">${date}</div>
+                ${groups[date].map(v => `
+                    <div class="history-item-wrapper" style="position:relative; margin-bottom: 16px;">
+                        <a href="watch.html?v=${v.videoId}" class="history-item">
+                            <div class="history-thumb" style="background-image: url('${v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`}')"></div>
+                            <div class="history-info">
+                                <h3>${v.title}</h3>
+                                <div class="history-meta">${v.author || '不明なチャンネル'} • ${v.views || ''}</div>
+                                <div class="history-desc">${v.description || ''}</div>
+                            </div>
+                        </a>
+                        <span class="material-icons-outlined delete-video-btn" onclick="event.preventDefault(); removeVideo(${v.timestamp})">close</span>
+                    </div>
+                `).join('')}
+            `).join('');
+        }
+
+        window.onload = loadHistory;
+    </script>
+</body>
+</html>
