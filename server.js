@@ -153,6 +153,27 @@ app.get('/api/comments/:id', async (req, res) => {
     }
 });
 
+app.get('/api/ytdlpstream', async (req, res) => {
+    const videoId = req.query.v;
+    if (!videoId) {
+        return res.status(400).json({ error: '動画ID (v) が必要です。' });
+    }
+
+    try {
+        const ytdlpUrl = `https://ytdlpinstance-vercel.vercel.app/api/info?v=${videoId}&f=18`;
+        const response = await axios.get(ytdlpUrl, { timeout: 10000 });
+        
+        if (response.data && response.data.url) {
+            res.json({ streamUrl: response.data.url });
+        } else {
+            res.status(404).json({ error: 'ストリームURLが見つかりませんでした。' });
+        }
+    } catch (error) {
+        console.error('yt-dlp Stream API Error:', error.message);
+        res.status(500).json({ error: 'ストリームURLの取得に失敗しました。' });
+    }
+});
+
 /**
  * 5. HTMLルーティング
  */
