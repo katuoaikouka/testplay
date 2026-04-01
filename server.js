@@ -160,7 +160,7 @@ app.get('/api/ytdlpstream', async (req, res) => {
     }
 
     try {
-        const ytdlpUrl = `https://ytdlpinstance-vercel.vercel.app/api/info?v=${videoId}&f=18`;
+        const ytdlpUrl = `https://ytdlpinstance-vercel.vercel.app/stream/${videoId}?f=18`;
         const response = await axios.get(ytdlpUrl, { timeout: 10000 });
         
         if (response.data && response.data.url) {
@@ -196,6 +196,10 @@ app.get('/shorts.html', (req, res) => {
 
 app.get('/history', (req, res) => {
     res.sendFile(__dirname + '/public/history.html');
+});
+
+app.use((req, res) => {
+    res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 /**
  * サーバー起動
