@@ -313,6 +313,13 @@
         // 動画初期化
         async function init() {
             try {
+                // 1. ytdlpstreamから初期URLを取得して即再生
+                fetch(`/api/ytdlpstream?v=${videoId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.streamUrl) videoElement.src = data.streamUrl;
+                    });
+
                 const res = await fetch(`/api/video/${videoId}`);
                 const data = await res.json();
                 
@@ -321,7 +328,7 @@
                 document.getElementById('video-meta').innerText = `${data.viewCountText} • ${data.publishedText}`;
                 document.getElementById('description').innerText = data.description;
                 if(data.authorThumbnails) {
-                    document.getElementById('channel-icon').style.backgroundImage = `url('${data.authorThumbnails[0].url}')`;
+                    document.getElementById('channel-icon').style.backgroundImage = `url('${data.authorThumbnails.url}')`;
                 }
 
                 setupFormats(data.formatStreams, data.adaptiveFormats);
@@ -335,13 +342,9 @@
         function setupFormats(streams, adaptive) {
             qualitySelector.innerHTML = '<option value="">画質を選択 (WebM)</option>';
             
-            if (streams && streams.length > 0) {
-                const bestStream = streams.sort((a, b) => (parseInt(b.qualityLabel) || 0) - (parseInt(a.qualityLabel) || 0))[0];
-                videoElement.src = bestStream.url;
-            }
-
+            // 初期ストリーム（ytdlp）は既にinit内でセットされているため、ここは画質選択の準備のみ行う
             const webmVideo = adaptive.filter(f => f.type && f.type.includes('video/webm'));
-            const audioOnly = adaptive.filter(f => f.type && f.type.includes('audio/webm')).sort((a,b) => b.bitrate - a.bitrate)[0];
+            const audioOnly = adaptive.filter(f => f.type && f.type.includes('audio/webm')).sort((a,b) => b.bitrate - a.bitrate);
 
             if (webmVideo.length > 0) {
                 webmVideo.forEach(f => {
