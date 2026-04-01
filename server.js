@@ -109,12 +109,13 @@ app.get('/api/suggestions', async (req, res) => {
     }
 
     try {
-        const url = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&hl=ja&q=${encodeURIComponent(query)}`;
+        // clientをchromeに変更することで、文字化けを防ぎ、解析しやすいJSON形式で取得します
+        const url = `https://suggestqueries.google.com/complete/search?client=chrome&ds=yt&hl=ja&q=${encodeURIComponent(query)}`;
         const response = await axios.get(url);
-        const match = response.data.match(/\((.*)\)/);
-        if (match) {
-            const data = JSON.parse(match[1]);
-            const suggestions = data[1].map(item => item[0]);
+        
+        // client=chromeの場合、response.dataにサジェスト結果の配列が直接入っています
+        if (response.data && Array.isArray(response.data)) {
+            const suggestions = response.data;
             res.json(suggestions);
         } else {
             res.json([]);
@@ -124,6 +125,7 @@ app.get('/api/suggestions', async (req, res) => {
         res.json([]); 
     }
 });
+
 
 /**
  * 4. 動画詳細情報取得 API
@@ -164,7 +166,9 @@ app.get('/api/ytdlpstream', async (req, res) => {
         const response = await axios.get(ytdlpUrl, { timeout: 10000 });
         
         let streamUrl = "";
+        let allFormats = []; // 全画質情報を保持するための変数を追加
         if (response.data && response.data.formats) {
+            allFormats = response.data.formats; // 全フォーマットを代入
             const format18 = response.data.formats.find(f => f.itag === "18" || f.itag === 18);
             if (format18) {
                 streamUrl = format18.url;
@@ -172,7 +176,11 @@ app.get('/api/ytdlpstream', async (req, res) => {
         }
 
         if (streamUrl) {
-            res.json({ streamUrl: streamUrl });
+            // 既存のstreamUrlを維持しつつ、全フォーマット(allFormats)をレスポンスに含めます
+            res.json({ 
+                streamUrl: streamUrl,
+                formats: allFormats 
+            });
         } else {
             res.status(404).json({ error: 'ストリームURLが見つかりませんでした。' });
         }
@@ -181,6 +189,7 @@ app.get('/api/ytdlpstream', async (req, res) => {
         res.status(500).json({ error: 'ストリームURLの取得に失敗しました。' });
     }
 });
+
 
 
 /**
