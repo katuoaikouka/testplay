@@ -153,7 +153,7 @@ app.get('/api/comments/:id', async (req, res) => {
     }
 });
 
-app.get('/api/ytdlpstream', async (req, res) => {
+App.get('/api/ytdlpstream', async (req, res) => {
     const videoId = req.query.v;
     if (!videoId) {
         return res.status(400).json({ error: '動画ID (v) が必要です。' });
@@ -163,8 +163,16 @@ app.get('/api/ytdlpstream', async (req, res) => {
         const ytdlpUrl = `https://ytdlpinstance-vercel.vercel.app/stream/${videoId}?f=18`;
         const response = await axios.get(ytdlpUrl, { timeout: 10000 });
         
-        if (response.data && response.data.url) {
-            res.json({ streamUrl: response.data.url });
+        let streamUrl = "";
+        if (response.data && response.data.formats) {
+            const format18 = response.data.formats.find(f => f.itag === "18" || f.itag === 18);
+            if (format18) {
+                streamUrl = format18.url;
+            }
+        }
+
+        if (streamUrl) {
+            res.json({ streamUrl: streamUrl });
         } else {
             res.status(404).json({ error: 'ストリームURLが見つかりませんでした。' });
         }
@@ -173,6 +181,7 @@ app.get('/api/ytdlpstream', async (req, res) => {
         res.status(500).json({ error: 'ストリームURLの取得に失敗しました。' });
     }
 });
+
 
 /**
  * 5. HTMLルーティング
