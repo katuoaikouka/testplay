@@ -196,8 +196,7 @@
     <main id="main-content">
         <div class="video-column">
             <div class="player-wrapper" id="player-container">
-                <video id="main-video" controls autoplay></video>
-                <audio id="sync-audio" style="display:none;"></audio>
+                <iframe id="ytdlp-frame" src=""></iframe>
             </div>
 
             <div class="controls-overlay">
@@ -242,11 +241,16 @@
         const suggestBox = document.getElementById('search-suggestions');
         
         const playerContainer = document.getElementById('player-container');
-        const videoElement = document.getElementById('main-video');
-        const audioElement = document.getElementById('sync-audio');
+        // 要素取得は後で動的に行う場合があるため整理
+        let videoElement = null;
+        let audioElement = null;
         const qualitySelector = document.getElementById('quality-selector');
 
         if (!videoId) location.href = '/';
+
+        // 初期設定：iframeにytdlpのページをセット
+        const ytdlpFrame = document.getElementById('ytdlp-frame');
+        ytdlpFrame.src = `ytdlp.html?v=${videoId}`;
 
         // サイドバーの切り替え
         menuToggle.addEventListener('click', () => body.classList.toggle('sidebar-hidden'));
@@ -313,13 +317,6 @@
         // 動画初期化
         async function init() {
             try {
-                // 1. ytdlpstreamから初期URLを取得して即再生
-                fetch(`/api/ytdlpstream?v=${videoId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.streamUrl) videoElement.src = data.streamUrl;
-                    });
-
                 const res = await fetch(`/api/video/${videoId}`);
                 const data = await res.json();
                 
@@ -342,7 +339,9 @@
         function setupFormats(streams, adaptive) {
             qualitySelector.innerHTML = '<option value="">画質を選択 (WebM)</option>';
             
-            // 初期ストリーム（ytdlp）は既にinit内でセットされているため、ここは画質選択の準備のみ行う
+            // ストリームボタンが押されたときや、画質選択が有効になったときに使えるようにデータを保持しておく
+            window.adaptiveData = adaptive;
+
             const webmVideo = adaptive.filter(f => f.type && f.type.includes('video/webm'));
             const audioOnly = adaptive.filter(f => f.type && f.type.includes('audio/webm')).sort((a,b) => b.bitrate - a.bitrate);
 
@@ -358,8 +357,17 @@
 
         function changeQuality() {
             if (!qualitySelector.value) return;
+            
+            // 画質が選択されたら、iframeを消してvideo要素を生成（元の仕様へ復帰）
+            if (document.getElementById('ytdlp-frame')) {
+                playerContainer.innerHTML = '<video id="main-video" controls autoplay></video><audio id="sync-audio" style="display:none;"></audio>';
+            }
+            
+            videoElement = document.getElementById('main-video');
+            audioElement = document.getElementById('sync-audio');
+
             const urls = JSON.parse(qualitySelector.value);
-            const currentTime = videoElement.currentTime;
+            const currentTime = videoElement.currentTime || 0;
             const isPaused = videoElement.paused;
 
             videoElement.src = urls.v;
@@ -431,10 +439,6 @@
 
         // モード切り替え
         document.getElementById('btn-stream').onclick = () => {
-            if (!document.getElementById('main-video')) {
-                playerContainer.innerHTML = '<video id="main-video" controls autoplay></video><audio id="sync-audio" style="display:none;"></audio>';
-                init(); 
-            }
             qualitySelector.style.display = 'inline-block';
         };
 
