@@ -4,20 +4,40 @@
     <meta charset="UTF-8">
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-        video { width: 100vw; height: 100vh; }
+        video { width: 100vw; height: 100vh; background: #000; }
     </style>
 </head>
 <body>
-    <video id="v" controls autoplay playsinline></video>
+    <video id="v" controls autoplay playsinline muted></video>
     <script>
         (async () => {
             const id = new URLSearchParams(window.location.search).get('v');
             if (!id) return;
+            
+            const video = document.getElementById('v');
+            
             try {
                 const res = await fetch(`/api/ytdlpstream?v=${id}`);
                 const data = await res.json();
-                if (data.streamUrl) document.getElementById('v').src = data.streamUrl;
-            } catch (e) { console.error(e); }
+                
+                if (data.streamUrl) {
+                    video.src = data.streamUrl;
+                    
+                    // エラーで止まった場合に再試行する処理
+                    video.onerror = () => {
+                        console.error("Video source error. Retrying...");
+                        video.load();
+                    };
+
+                    // 自動再生を試みる（ブロックされた場合でも手動再生可能）
+                    video.play().catch(e => {
+                        console.log("Autoplay blocked. User interaction required.");
+                        // ミュート解除を促すか、クリックを待つ
+                    });
+                }
+            } catch (e) { 
+                console.error("Fetch error:", e); 
+            }
         })();
     </script>
 </body>
