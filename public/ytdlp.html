@@ -3,40 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-        video { width: 100vw; height: 100vh; background: #000; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: Roboto, Arial, sans-serif; }
+        .video-container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; background: #000; }
+
+        /* 読み込みアニメーション */
+        .loader { position: absolute; width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.2); border-top: 5px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; display: none; z-index: 10; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 独自UIコンテナ */
+        .custom-controls { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 10px; display: flex; align-items: center; gap: 15px; opacity: 0; transition: opacity 0.3s; z-index: 20; }
+        .video-container:hover .custom-controls { opacity: 1; }
+
+        .btn { background: none; border: none; color: white; cursor: pointer; font-size: 14px; padding: 5px 10px; }
+        .btn:hover { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+        /* 設定メニュー（常時表示設定） */
+        .settings-menu { position: absolute; bottom: 50px; right: 10px; background: rgba(28, 28, 28, 0.9); border-radius: 8px; display: none; flex-direction: column; min-width: 150px; z-index: 30; border: 1px solid rgba(255,255,255,0.1); }
+        /* コンテナホバー時にメニューを表示状態にする */
+        .video-container:hover #main-menu { display: flex; }
+        
+        .menu-item { padding: 10px 15px; color: white; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
+        .menu-item:hover { background: rgba(255,255,255,0.1); }
+        .sub-menu { display: none; flex-direction: column; }
+        .active-val { color: #aaa; font-size: 11px; margin-left: 10px; }
+
+        /* ミュート解除ボタン (YouTube公式再現) */
+        #unmute-overlay { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); color: white; padding: 12px 16px; border-radius: 2px; cursor: pointer; z-index: 40; display: flex; align-items: center; gap: 8px; font-size: 14px; text-transform: uppercase; font-weight: 500; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.1); }
+        #unmute-overlay:hover { background: rgba(30, 30, 30, 0.9); }
     </style>
 </head>
 <body>
-    <video id="v" controls autoplay playsinline muted></video>
+    <div class="video-container" id="container">
+        <div class="loader" id="loader"></div>
+        
+        <div id="unmute-overlay" style="display: none;">
+            <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5,12L19,9.5L20.41,10.91L17.91,13.41L20.41,15.91L19,17.32L16.5,14.82L14,17.32L12.59,15.91L15.09,13.41L12.59,10.91L14,9.5L16.5,12M9,9V15H5V9H9M11,5V19L7,15H3V9H7L11,5Z" /></svg>
+            タップしてミュート解除
+        </div>
+
+        <video id="v" controls autoplay playsinline muted></video>
+
+        <div class="custom-controls">
+            <button class="btn" id="play-btn">再生/一時停止</button>
+            <div style="flex-grow: 1;"></div>
+            <button class="btn" id="settings-btn">設定</button>
+        </div>
+
+        <div class="settings-menu" id="main-menu">
+            <div class="menu-item" onclick="showSub('speed-menu')">再生速度 <span class="active-val" id="current-speed">標準</span></div>
+            <div class="menu-item" onclick="showSub('quality-menu')">画質 <span class="active-val" id="current-quality">自動</span></div>
+        </div>
+
+        <div class="settings-menu" id="speed-menu">
+            <div class="menu-item" style="border-bottom: 1px solid #444" onclick="showMain()">戻る</div>
+            <div class="menu-item" onclick="setSpeed(0.5)">0.5x</div>
+            <div class="menu-item" onclick="setSpeed(1)">標準</div>
+            <div class="menu-item" onclick="setSpeed(1.5)">1.5x</div>
+            <div class="menu-item" onclick="setSpeed(2)">2x</div>
+        </div>
+
+        <div class="settings-menu" id="quality-menu">
+            <div class="menu-item" style="border-bottom: 1px solid #444" onclick="showMain()">戻る</div>
+            <div id="quality-list"></div>
+        </div>
+    </div>
+
     <script>
+        const video = document.getElementById('v');
+        const loader = document.getElementById('loader');
+        const mainMenu = document.getElementById('main-menu');
+        const speedMenu = document.getElementById('speed-menu');
+        const qualityMenu = document.getElementById('quality-menu');
+        const unmuteOverlay = document.getElementById('unmute-overlay');
+        let allFormats = [];
+
+        // ミュート解除処理
+        unmuteOverlay.onclick = (e) => {
+            e.stopPropagation();
+            video.muted = false;
+            unmuteOverlay.style.display = 'none';
+        };
+
+        // メニュー制御用関数
+        function showMain() {
+            speedMenu.style.display = 'none';
+            qualityMenu.style.display = 'none';
+            mainMenu.style.display = 'flex';
+        }
+        function showSub(id) {
+            mainMenu.style.display = 'none';
+            document.getElementById(id).style.display = 'flex';
+        }
+        function setSpeed(s) {
+            video.playbackRate = s;
+            document.getElementById('current-speed').innerText = s === 1 ? '標準' : s + 'x';
+            closeAllMenus();
+        }
+        function setQuality(url, label) {
+            const currentTime = video.currentTime;
+            const isPaused = video.paused;
+            video.src = url;
+            video.currentTime = currentTime;
+            document.getElementById('current-quality').innerText = label;
+            if (!isPaused) video.play();
+            closeAllMenus();
+        }
+        function closeAllMenus() {
+            // 常時表示(hover)のため、ここではサブメニューのみ隠し、メインはCSSに任せる
+            speedMenu.style.display = 'none';
+            qualityMenu.style.display = 'none';
+        }
+
+        // イベントリスナー
+        document.getElementById('settings-btn').onclick = (e) => {
+            e.stopPropagation();
+            // 手動での表示切り替えを維持
+            mainMenu.style.display = (mainMenu.style.display === 'flex') ? 'none' : 'flex';
+        };
+        document.getElementById('play-btn').onclick = () => video.paused ? video.play() : video.pause();
+        document.addEventListener('click', closeAllMenus);
+        video.onwaiting = () => loader.style.display = 'block';
+        video.onplaying = () => {
+            loader.style.display = 'none';
+            // 再生開始時にミュート状態ならボタンを表示
+            if (video.muted) {
+                unmuteOverlay.style.display = 'flex';
+            }
+        };
+
         (async () => {
             const id = new URLSearchParams(window.location.search).get('v');
             if (!id) return;
             
-            const video = document.getElementById('v');
-            
             try {
+                loader.style.display = 'block';
                 const res = await fetch(`/api/ytdlpstream?v=${id}`);
                 const data = await res.json();
                 
                 if (data.streamUrl) {
                     video.src = data.streamUrl;
                     
-                    // エラーで止まった場合に再試行する処理
+                    if (data.formats) {
+                        const list = document.getElementById('quality-list');
+                        data.formats.reverse().forEach(f => {
+                            if (f.url) {
+                                const item = document.createElement('div');
+                                item.className = 'menu-item';
+                                const label = f.height ? f.height + 'p' : (f.format_note || '不明');
+                                item.innerText = label;
+                                item.onclick = () => setQuality(f.url, label);
+                                list.appendChild(item);
+                            }
+                        });
+                    }
+
                     video.onerror = () => {
                         console.error("Video source error. Retrying...");
                         video.load();
                     };
 
-                    // 自動再生を試みる（ブロックされた場合でも手動再生可能）
                     video.play().catch(e => {
                         console.log("Autoplay blocked. User interaction required.");
-                        // ミュート解除を促すか、クリックを待つ
+                        loader.style.display = 'none';
                     });
                 }
             } catch (e) { 
                 console.error("Fetch error:", e); 
+                loader.style.display = 'none';
             }
         })();
     </script>
