@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+        video { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <video id="v" controls autoplay playsinline></video>
+    <script>
+        (async () => {
+            const id = new URLSearchParams(window.location.search).get('v');
+            if (!id) return;
+            try {
+                const res = await fetch(`/api/ytdlpstream?v=${id}`);
+                const data = await res.json();
+                if (data.streamUrl) document.getElementById('v').src = data.streamUrl;
+            } catch (e) { console.error(e); }
+        })();
+    </script>
+</body>
+</html>
