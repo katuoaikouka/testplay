@@ -153,7 +153,7 @@ app.get('/api/comments/:id', async (req, res) => {
     }
 });
 
-App.get('/api/ytdlpstream', async (req, res) => {
+app.get('/api/ytdlpstream', async (req, res) => {
     const videoId = req.query.v;
     if (!videoId) {
         return res.status(400).json({ error: '動画ID (v) が必要です。' });
