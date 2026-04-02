@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shorts Pro UI - Swipe Gesture</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --yt-red: #ff0000;
+            --overlay-grad: linear-gradient(rgba(0,0,0,0) 60%, rgba(0,0,0,0.85) 100%);
+            --panel-bg: #212121;
+            --icon-active: rgba(255, 255, 255, 0.3);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: #000; color: #fff;
+            font-family: "Roboto", sans-serif;
+            overflow: hidden;
+            touch-action: none; /* ブラウザ標準のバウンス等を抑制 */
+        }
+
+        /* メインコンテナ */
+        .shorts-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ビデオエリア */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 450px;
+            background: #000;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* --- 独自ローディングアニメーション --- */
+        .custom-loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .loader-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--yt-red);
+            border-radius: 50%;
+            animation: bounce 0.6s infinite alternate;
+        }
+
+        .loader-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loader-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-20px); opacity: 0.3; }
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- アクションボタン --- */
+        .side-bar {
+            position: absolute;
+            right: 12px;
+            bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 50;
+            align-items: center;
+        }
+
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: white;
+            padding: 0;
+            transition: 0.1s;
+        }
+
+        .btn-icon-bg {
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 4px;
+            backdrop-filter: blur(10px);
+        }
+
+        .action-btn:active .btn-icon-bg { background: var(--icon-active); transform: scale(0.9); }
+        .action-btn span { font-size: 12px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+
+        /* --- 下部情報 --- */
+        .video-meta {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 80px 16px 28px;
+            background: var(--overlay-grad);
+            pointer-events: none;
+            box-sizing: border-box;
+            z-index: 40;
+        }
+
+        .video-meta * { pointer-events: auto; }
+
+        .profile-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .username { font-weight: bold; font-size: 15px; }
+
+        .subscribe-btn {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 18px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .title {
+            font-size: 14px;
+            line-height: 1.4;
+            max-width: 85%;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* --- スライドパネル --- */
+        .slide-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: var(--panel-bg);
+            border-radius: 12px 12px 0 0;
+            z-index: 1000;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+        }
+
+        .slide-panel.open { transform: translateY(0); }
+
+        .panel-header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 16px;
+        }
+
+        /* 概要欄パネル用のスタイル */
+        .description-stats {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .stat-item .stat-value { font-size: 18px; font-weight: bold; display: block; }
+        .stat-item .stat-label { font-size: 12px; color: #aaa; }
+
+        .description-text {
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            color: #eee;
+        }
+
+        /* 共有グリッド */
+        .share-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            text-align: center;
+        }
+
+        .share-item {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .share-item:active { transform: scale(0.9); }
+
+        .share-item .icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin: 0 auto 8px;
+        }
+
+        .share-item span { font-size: 11px; color: #ccc; }
+        .fa-line { color: #06C755; }
+
+        /* 進捗バー */
+        .progress-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(255,255,255,0.1);
+            z-index: 60;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--yt-red);
+            width: 0%;
+        }
+
+        /* コピー完了通知 */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            color: #000;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 2000;
+            opacity: 0;
+            transition: 0.3s;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="shorts-container">
+    <div class="video-wrapper">
+        
+        <div id="loader" class="custom-loader">
+            <div class="loader-dot"></div>
+            <div class="loader-dot"></div>
+            <div class="loader-dot"></div>
+        </div>
+
+        <video id="v" loop playsinline 
+               src="https://assets.mixkit.co/videos/preview/mixkit-vertical-video-of-a-person-cycling-at-night-42111-large.mp4">
+        </video>
+
+        <div class="side-bar">
+            <div class="action-btn">
+                <div class="btn-icon-bg"><i class="fas fa-thumbs-up"></i></div>
+                <span>1.5万</span>
+            </div>
+            <div class="action-btn">
+                <div class="btn-icon-bg"><i class="fas fa-thumbs-down"></i></div>
+                <span>低評価</span>
+            </div>
+            <div class="action-btn" onclick="openPanel('commentPanel')">
+                <div class="btn-icon-bg"><i class="fas fa-comment-dots"></i></div>
+                <span>820</span>
+            </div>
+            <div class="action-btn" onclick="openPanel('sharePanel')">
+                <div class="btn-icon-bg"><i class="fas fa-share"></i></div>
+                <span>共有</span>
+            </div>
+        </div>
+
+        <div class="video-meta">
+            <div class="profile-row">
+                <img src="https://via.placeholder.com/40" class="avatar" alt="user">
+                <span class="username">@Tech_Creative_Shorts</span>
+                <button class="subscribe-btn">登録</button>
+            </div>
+            <div id="swipeTarget" class="title" onclick="openPanel('descriptionPanel')">
+                音楽アイコンを削除し、共有機能（LINE・URLコピー）を強化。タイトル部分を上にスワイプで概要欄を表示！
+            </div>
+        </div>
+
+        <div class="progress-container">
+            <div id="pBar" class="progress-bar"></div>
+        </div>
+
+        <div id="descriptionPanel" class="slide-panel">
+            <div class="panel-header">
+                <strong>説明</strong>
+                <i class="fas fa-times" onclick="closePanels()" style="cursor:pointer; padding:5px;"></i>
+            </div>
+            <div class="panel-content">
+                <div class="description-stats">
+                    <div class="stat-item">
+                        <span class="stat-value">1.5万</span>
+                        <span class="stat-label">高く評価</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">24.5万</span>
+                        <span class="stat-label">視聴回数</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">2024/05/20</span>
+                        <span class="stat-label">投稿日</span>
+                    </div>
+                </div>
+                <div class="description-text">
+                    最新のUIデザインに基づいたYouTube Shortsクローンです。
+                    
+                    【機能一覧】
+                    ・独自ローディングアニメーション
+                    ・シームレスな再生/一時停止
+                    ・コメント/共有パネルのスライド表示
+                    ・LINE共有、URLコピー機能
+                    ・タイトル部分の上スワイプ・タップで概要を表示
+                    
+                    #UI #UX #Programming #HTML #CSS #Shorts
+                </div>
+            </div>
+        </div>
+
+        <div id="commentPanel" class="slide-panel">
+            <div class="panel-header">
+                <strong>コメント</strong>
+                <i class="fas fa-times" onclick="closePanels()" style="cursor:pointer; padding:5px;"></i>
+            </div>
+            <div class="panel-content">
+                <p style="text-align:center; color:#888; font-size:14px;">コメント機能をここに表示</p>
+            </div>
+        </div>
+
+        <div id="sharePanel" class="slide-panel">
+            <div class="panel-header">
+                <strong>共有</strong>
+                <i class="fas fa-times" onclick="closePanels()" style="cursor:pointer; padding:5px;"></i>
+            </div>
+            <div class="panel-content">
+                <div class="share-grid">
+                    <div class="share-item" onclick="shareToLine()">
+                        <div class="icon-box"><i class="fab fa-line"></i></div>
+                        <span>LINE</span>
+                    </div>
+                    <div class="share-item" onclick="copyUrl()">
+                        <div class="icon-box"><i class="fas fa-link"></i></div>
+                        <span>URLをコピー</span>
+                    </div>
+                    <div class="share-item" onclick="systemShare()">
+                        <div class="icon-box"><i class="fas fa-ellipsis-h"></i></div>
+                        <span>その他</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast" class="toast">URLをコピーしました</div>
+
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('v');
+    const loader = document.getElementById('loader');
+    const pBar = document.getElementById('pBar');
+    const toast = document.getElementById('toast');
+    const swipeTarget = document.getElementById('swipeTarget');
+
+    // 動画読み込み完了
+    video.addEventListener('canplay', () => {
+        loader.classList.add('hidden');
+        video.play().catch(() => {});
+    });
+
+    // 進捗更新
+    video.addEventListener('timeupdate', () => {
+        const percent = (video.currentTime / video.duration) * 100;
+        pBar.style.width = percent + '%';
+    });
+
+    // パネル操作
+    function openPanel(id) {
+        closePanels();
+        document.getElementById(id).classList.add('open');
+    }
+
+    function closePanels() {
+        document.querySelectorAll('.slide-panel').forEach(p => p.classList.remove('open'));
+    }
+
+    // --- スワイプジェスチャーの実装 ---
+    let touchStartY = 0;
+    swipeTarget.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches.clientY;
+    }, {passive: true});
+
+    swipeTarget.addEventListener('touchend', (e) => {
+        let touchEndY = e.changedTouches.clientY;
+        // 上方向に30px以上スワイプされたらパネルを開く
+        if (touchStartY - touchEndY > 30) {
+            openPanel('descriptionPanel');
+        }
+    }, {passive: true});
+
+    // --- 共有機能の実装 ---
+    function shareToLine() {
+        const url = window.location.href;
+        window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, '_blank');
+    }
+
+    function copyUrl() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            showToast("URLをコピーしました");
+            closePanels();
+        });
+    }
+
+    async function systemShare() {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Shorts Video',
+                    text: 'この動画をチェックしてみて！',
+                    url: window.location.href
+                });
+            } catch (err) {
+                console.log("Share failed", err);
+            }
+        } else {
+            showToast("ブラウザが共有に対応していません");
+        }
+    }
+
+    function showToast(msg) {
+        toast.innerText = msg;
+        toast.style.opacity = "1";
+        setTimeout(() => { toast.style.opacity = "0"; }, 2000);
+    }
+
+    // 背景クリック制御
+    document.querySelector('.video-wrapper').addEventListener('click', (e) => {
+        if(e.target.closest('.side-bar') || e.target.closest('.slide-panel') || e.target.closest('.video-meta')) return;
+        
+        const anyPanelOpen = document.querySelector('.slide-panel.open');
+        if (anyPanelOpen) {
+            closePanels();
+        } else {
+            video.paused ? video.play() : video.pause();
+        }
+    });
+</script>
+
+</body>
+</html>
