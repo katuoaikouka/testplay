@@ -190,6 +190,37 @@ app.get('/api/ytdlpstream', async (req, res) => {
     }
 });
 
+app.get('/api/m3u8', async (req, res) => {
+    const videoId = req.query.v;
+
+    if (!videoId) {
+        return res.status(400).json({ error: "動画ID (v) が指定されていません" });
+    }
+
+    // これまで作成した外部API（GASプロキシ）のURL
+    const proxyUrl = `https://meu8.vercel.app/m3u8/${encodeURIComponent(videoId)}`;
+
+    try {
+        console.log(`[m3u8] 外部APIへリクエスト送信中: ID=${videoId}`);
+        
+        // 外部サーバーへリクエスト
+        const response = await axios.get(proxyUrl, { timeout: 10000 });
+
+        // GAS側でエラー（HTML）が返ってきた場合のチェック
+        if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+            return res.status(500).json({ error: "外部API側でスクリプトエラーが発生しています。" });
+        }
+
+        // 取得したデータ（[{resolution, format, url}, ... ]）をそのまま返す
+        // ※ server.jsの以前の修正により、この形式で返ってくるようになっています
+        res.json(response.data);
+
+    } catch (error) {
+        console.error('m3u8 API Error:', error.message);
+        res.status(500).json({ error: '全画質ストリームの取得に失敗しました。' });
+    }
+});
+
 
 
 /**
