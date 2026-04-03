@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: Roboto, Arial, sans-serif; }
+        .video-container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; background: #000; }
+
+        /* 読み込みアニメーション */
+        .loader { position: absolute; width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.2); border-top: 5px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; display: none; z-index: 10; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* ミュート解除ボタン (YouTube公式再現) */
+        #unmute-overlay { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); color: white; padding: 12px 16px; border-radius: 2px; cursor: pointer; z-index: 40; display: flex; align-items: center; gap: 8px; font-size: 14px; text-transform: uppercase; font-weight: 500; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.1); }
+        #unmute-overlay:hover { background: rgba(30, 30, 30, 0.9); }
+
+        /* 画質選択メニュー */
+        #quality-selector { position: absolute; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.8); color: white; padding: 8px; border-radius: 2px; z-index: 40; font-size: 12px; border: 1px solid rgba(255,255,255,0.1); outline: none; cursor: pointer; display: none; }
+    </style>
+</head>
+<body>
+    <div class="video-container" id="container">
+        <div class="loader" id="loader"></div>
+        
+        <div id="unmute-overlay" style="display: none;">
+            <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5,12L19,9.5L20.41,10.91L17.91,13.41L20.41,15.91L19,17.32L16.5,14.82L14,17.32L12.59,15.91L15.09,13.41L12.59,10.91L14,9.5L16.5,12M9,9V15H5V9H9M11,5V19L7,15H3V9H7L11,5Z" /></svg>
+            タップしてミュート解除
+        </div>
+
+        <select id="quality-selector"></select>
+
+        <video id="v" controls autoplay playsinline muted></video>
+    </div>
+
+    <script>
+        const video = document.getElementById('v');
+        const loader = document.getElementById('loader');
+        const unmuteOverlay = document.getElementById('unmute-overlay');
+        const qualitySelector = document.getElementById('quality-selector');
+        let hls = null;
+        let streams = [];
+
+        // ミュート解除処理
+        unmuteOverlay.onclick = (e) => {
+            e.stopPropagation();
+            video.muted = false;
+            unmuteOverlay.style.display = 'none';
+        };
+
+        // イベントリスナー
+        video.onwaiting = () => loader.style.display = 'block';
+        video.onplaying = () => {
+            loader.style.display = 'none';
+            if (video.muted) {
+                unmuteOverlay.style.display = 'flex';
+            }
+        };
+
+        // 画質切り替え処理
+        qualitySelector.onchange = (e) => {
+            const index = parseInt(e.target.value);
+            const selectedUrl = streams[index].url;
+            const currentTime = video.currentTime;
+            const isPaused = video.paused;
+
+            if (hls) {
+                hls.destroy();
+            }
+            initHls(selectedUrl, currentTime, !isPaused);
+        };
+
+        function initHls(url, startTime = 0, autoPlay = true) {
+            if (Hls.isSupported()) {
+                hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.currentTime = startTime;
+                    if (autoPlay) video.play().catch(() => {});
+                });
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) hls.destroy();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    video.currentTime = startTime;
+                    if (autoPlay) video.play();
+                }, { once: true });
+            }
+        }
+
+        (async () => {
+            const id = new URLSearchParams(window.location.search).get('v');
+            if (!id) return;
+            
+            try {
+                loader.style.display = 'block';
+                // APIエンドポイント /api/m3u8 から全画質リストを取得
+                const res = await fetch(`/api/m3u8?v=${id}`);
+                const data = await res.json();
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    streams = data; // 全画質リストを保存
+
+                    // セレクターの構築
+                    qualitySelector.innerHTML = '';
+                    streams.forEach((item, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.text = item.resolution || `画質 ${index + 1}`;
+                        qualitySelector.appendChild(option);
+                    });
+                    qualitySelector.style.display = 'block';
+
+                    // 最初（最高画質またはデフォルト）のストリームで再生開始
+                    initHls(streams.url);
+                }
+            } catch (e) { 
+                console.error("Fetch error:", e); 
+                loader.style.display = 'none';
+            }
+        })();
+    </script>
+</body>
+</html>
