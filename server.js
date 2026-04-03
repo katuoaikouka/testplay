@@ -197,30 +197,37 @@ app.get('/api/m3u8', async (req, res) => {
         return res.status(400).json({ error: "動画ID (v) が指定されていません" });
     }
 
-    // これまで作成した外部API（GASプロキシ）のURL
     const proxyUrl = `https://meu8.vercel.app/m3u8/${encodeURIComponent(videoId)}`;
 
     try {
-        console.log(`[m3u8] 外部APIへリクエスト送信中: ID=${videoId}`);
+        console.log(`[m3u8] Requesting: ID=${videoId}`);
         
-        // 外部サーバーへリクエスト
-        const response = await axios.get(proxyUrl, { timeout: 10000 });
+        const response = await axios.get(proxyUrl, { 
+            timeout: 15000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
 
-        // GAS側でエラー（HTML）が返ってきた場合のチェック
         if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
-            return res.status(500).json({ error: "外部API側でスクリプトエラーが発生しています。" });
+            return res.status(500).json({ error: "外部API(GAS)側でエラーページが返されました。" });
         }
 
-        // 取得したデータ（[{resolution, format, url}, ... ]）をそのまま返す
-        // ※ server.jsの以前の修正により、この形式で返ってくるようになっています
-        res.json(response.data);
+        // データの形式チェック
+        const streams = response.data;
+        if (!Array.isArray(streams) || streams.length === 0) {
+            return res.status(404).json({ error: "有効なストリームが見つかりませんでした。" });
+        }
+
+        // ブラウザ側でのキャッシュを防ぐ設定を追加してレスポンス
+        res.setHeader('Cache-Control', 'no-cache');
+        res.json(streams);
 
     } catch (error) {
         console.error('m3u8 API Error:', error.message);
-        res.status(500).json({ error: '全画質ストリームの取得に失敗しました。' });
+        res.status(500).json({ error: 'ストリーム取得中に通信エラーが発生しました。' });
     }
 });
-
 
 
 /**
