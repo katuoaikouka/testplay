@@ -38,14 +38,24 @@ function injectYoutubeThumbnails(video) {
         ];
     }
     
-    // チャンネルアイコンの相対パスを絶対パスに変換
-    if (video.authorThumbnails) {
-        video.authorThumbnails.forEach(t => {
-            if (t.url.startsWith('/')) {
-                // インスタンスが特定できない場合は暫定的に一つを使用（表示用）
+    // チャンネルアイコンのパスをYouTubeの本物（ggpht）に変換、または絶対URL化
+    if (video.authorThumbnails && Array.isArray(video.authorThumbnails)) {
+        video.authorThumbnails = video.authorThumbnails.map(t => {
+            if (t.url.startsWith('/ggpht')) {
+                // 相対パスの場合、YouTubeの画像サーバーへ直接飛ばす
+                t.url = `https://yt3.ggpht.com${t.url}`;
+            } else if (t.url.startsWith('/')) {
+                // その他の相対パスはインスタンスのURLを付与
                 t.url = `https://invidious.f5.si${t.url}`;
             }
+            return t;
         });
+        
+        // watch.html側で data.authorThumbnails.url を参照しているため、
+        // 配列の最初の要素をプロパティとしても持たせておく（互換性維持）
+        if (video.authorThumbnails.length > 0) {
+            video.authorThumbnails.url = video.authorThumbnails.url;
+        }
     }
     return video;
 }
