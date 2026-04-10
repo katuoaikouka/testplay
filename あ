@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かつおTube</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        /* ページ読み込み時に設定を確認して即時反映（初期はライトモード） */
+        (function() {
+            const darkMode = localStorage.getItem('dark_mode');
+            if (darkMode === 'enabled') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
+    <style>
+        :root { --main: #ff0000; --bg: #ffffff; --text: #0f0f0f; --search-bg: #ffffff; --search-border: #ccc; --btn-bg: #f8f8f8; }
+        
+        /* ダークモード時のスタイル定義 */
+        [data-theme="dark"] {
+            --bg: #0f0f0f;
+            --text: #f1f1f1;
+            --search-bg: #121212;
+            --search-border: #333;
+            --btn-bg: #222222;
+        }
+
+        body { margin: 0; background: var(--bg); font-family: "Roboto", "Arial", sans-serif; color: var(--text); transition: background-color 0.2s, color 0.2s; overflow-x: hidden; }
+        header { background: var(--bg); padding: 0 16px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+        
+        /* ダークモード時の要素調整 */
+        [data-theme="dark"] header { background: #0f0f0f; }
+        [data-theme="dark"] #suggest-box { background: #2a2a2a; border-color: #444; color: white; }
+        [data-theme="dark"] .suggest-item:hover { background: #383838; }
+        [data-theme="dark"] .search-form input { background: var(--search-bg); color: white; border-color: var(--search-border); }
+        [data-theme="dark"] .search-form button { background: #333; border-color: var(--search-border); color: #fff; }
+        [data-theme="dark"] .sidebar { background: #0f0f0f; }
+        [data-theme="dark"] .sidebar-item:hover { background: #272727; }
+        [data-theme="dark"] .sidebar-hr { border-color: #333; }
+
+        .header-left { display: flex; align-items: center; }
+        .menu-btn { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 8px; margin-right: 8px; border-radius: 50%; }
+        .menu-btn:hover { background: rgba(0,0,0,0.1); }
+        [data-theme="dark"] .menu-btn:hover { background: rgba(255,255,255,0.1); }
+
+        .logo { display: flex; align-items: center; text-decoration: none; }
+        .logo img { height: 20px; object-fit: contain; }
+        
+        .search-form { flex: 0 1 720px; display: flex; align-items: center; margin: 0 16px; position: relative; }
+        .search-form input { 
+            flex: 1; 
+            height: 38px;
+            padding: 0 16px; 
+            border: 1px solid var(--search-border); 
+            border-radius: 40px 0 0 40px; 
+            outline: none; 
+            background: var(--search-bg);
+            color: var(--text);
+            font-size: 16px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .search-form input:focus { border-color: #0556bf; }
+        .search-form button { 
+            width: 64px;
+            height: 40px;
+            background: var(--btn-bg); 
+            border: 1px solid var(--search-border); 
+            border-left: none; 
+            border-radius: 0 40px 40px 0; 
+            cursor: pointer; 
+            color: var(--text);
+        }
+        
+        /* サイドバーのスタイル */
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            left: -240px;
+            width: 240px;
+            height: calc(100vh - 56px);
+            background: #ffffff;
+            z-index: 99;
+            transition: left 0.3s ease;
+            padding: 12px 0;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .sidebar.active { left: 0; }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            height: 40px;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 400;
+            margin: 0 12px;
+            border-radius: 10px;
+            transition: background 0.1s;
+        }
+        .sidebar-item:hover { background: #f2f2f2; }
+        .sidebar-item i { margin-right: 24px; width: 24px; text-align: center; font-size: 18px; }
+        .sidebar-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sidebar-hr { border: 0; border-top: 1px solid #e5e5e5; margin: 12px 0; }
+
+        /* オーバーレイ */
+        .overlay {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 98;
+        }
+        .overlay.active { display: block; }
+
+        main { padding: 20px; transition: margin-left 0.3s ease; }
+
+        #suggest-box { display: none; background: white; border: 1px solid #ccc; position: absolute; z-index: 1000; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); overflow: hidden; }
+        .suggest-item { padding: 8px 16px; cursor: pointer; font-size: 15px; font-weight: 500; }
+        .suggest-item:hover { background: #eee; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <button class="menu-btn" id="menuToggle"><i class="fas fa-bars"></i></button>
+            <a href="/" class="logo">
+                <img src="https://as2.ftcdn.net/jpg/07/32/01/31/1000_F_732013128_4w36WRSEpuF1oT9nK0Bd31GT353WqFYi.jpg" alt="YouTube">
+            </a>
+        </div>
+        
+        <form action="/search" method="get" class="search-form">
+            <input type="text" name="q" placeholder="検索" autocomplete="off">
+            <button type="submit"><i class="fas fa-search"></i></button>
+        </form>
+
+        <div style="width: 40px;"></div> </header>
+
+    <div class="overlay" id="overlay"></div>
+
+    <nav class="sidebar" id="sidebar">
+        <a href="/" class="sidebar-item">
+            <i class="fas fa-home"></i>
+            <span>ホーム</span>
+        </a>
+        <a href="/settings.html" class="sidebar-item">
+            <i class="fab fa-setting"></i>
+            <span>設定</span>
+        </a>
+        <a href="" class="sidebar-item">
+            <i class="fas fa-layer-group"></i>
+            <span>登録チャンネル</span>
+        </a>
+        <hr class="sidebar-hr">
+        <a href="game.html" class="sidebar-item">
+            <i class="fas fa-gamepad"></i>
+            <span>game</span>
+        </a>
+        <a href="tool.html" class="sidebar-item">
+            <i class="fas fa-wrench"></i>
+            <span>ツール</span>
+        </a>
+        <hr class="sidebar-hr">
+        <a href="/history.html" class="sidebar-item">
+            <i class="fas fa-history"></i>
+            <span>履歴</span>
+        </a>
+        <a href="#" class="sidebar-item">
+            <i class="fas fa-clock"></i>
+            <span>後で見る</span>
+        </a>
+    </nav>
+
+    <main id="main-content">{% block content %}{% endblock %}</main>
+
+    <script>
+        // サイドバーの開閉制御
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        // 検索サジェストの制御（変更なし）
+        const input = document.querySelector('input[name="q"]');
+        const box = document.getElementById('suggest-box') || document.createElement('div');
+        box.id = 'suggest-box'; document.body.appendChild(box);
+        input.addEventListener('input', async () => {
+            if (input.value.length < 2) { box.style.display = 'none'; return; }
+            const res = await fetch(`/api/suggestions?q=${input.value}`);
+            const data = await res.json();
+            box.innerHTML = data.map(s => `<div class="suggest-item">${s}</div>`).join('');
+            const rect = input.getBoundingClientRect();
+            box.style.left = rect.left + 'px'; box.style.top = rect.bottom + 'px';
+            box.style.width = rect.width + 'px'; box.style.display = 'block';
+            document.querySelectorAll('.suggest-item').forEach(i => i.onclick = () => { input.value = i.innerText; input.form.submit(); });
+        });
+    </script>
+    <script src="//accaii.com/sennin/script.js" async></script>
+    <noscript><img src="//accaii.com/sennin/script?guid=on"></noscript>
+</body>
+</html>
